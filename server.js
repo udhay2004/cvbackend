@@ -5,6 +5,7 @@ require('dotenv').config();
 
 const campaignsRoutes = require('./routes/campaigns');
 const partnersRoutes = require('./routes/partners');
+const contactRoutes = require('./routes/contact');
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.get('/', (req, res) => {
 
 app.use('/api/campaigns', campaignsRoutes);
 app.use('/api/partners', partnersRoutes);
+app.use('/api/contact', contactRoutes);
 
 const PORT = process.env.PORT || 5000;
 
