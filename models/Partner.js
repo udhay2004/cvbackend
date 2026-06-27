@@ -1,0 +1,26 @@
+const mongoose = require('mongoose');
+
+const partnerSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    email: { type: String, required: true, lowercase: true, trim: true, index: true },
+    phone: { type: String, trim: true },
+    organization: { type: String, trim: true },
+
+    // Raw free text exactly as the person typed it — never discarded,
+    // since this is the source of truth if we ever need to re-extract
+    // tags with a better prompt later.
+    marketsText: { type: String, trim: true },
+    expertiseText: { type: String, trim: true },
+    bio: { type: String, trim: true },
+
+    // Structured tags extracted by Claude from marketsText + expertiseText.
+    // This is what matching actually runs against — see routes/partners.js.
+    extractedTags: [{ type: String }],
+
+    isActive: { type: Boolean, default: true },
+  },
+  { timestamps: true }
+);
+
+module.exports = mongoose.model('Partner', partnerSchema);
