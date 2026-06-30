@@ -9,13 +9,23 @@ const guidesRoutes = require('./routes/guides');
 const app = express();
 // Allow your AI Studio frontend (and local dev) to call this API.
 // Add your real deployed frontend domain here once you have one.
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://connect-ventures-frontend-jwirjkfc7.vercel.app',
+  process.env.FRONTEND_URL, // e.g. https://your-custom-domain.com — set this in Render's env vars once you have a custom domain
+];
+
 app.use(
   cors({
-    origin: [
-      'http://localhost:5173',
-      'http://localhost:3000',
-      // 'https://theconnectventures.com', // uncomment + set once deployed
-    ],
+    origin: (origin, callback) => {
+      // allow non-browser tools (curl/Postman) which send no origin
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      // allow any *.vercel.app preview/prod deployment
+      if (/\.vercel\.app$/.test(new URL(origin).hostname)) return callback(null, true);
+      return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
   })
 );
