@@ -8,7 +8,6 @@ const COUNTRY_FILE_MAP = {
   Estonia: 'estonia.docx',
   Germany: 'germany.docx',
   'Hong Kong': 'hongkong.docx',
-  India: 'india.docx',
   Indonesia: 'indonesia.docx',
   Italy: 'italy.docx',
   Netherlands: 'netherlands.docx',
