@@ -12,7 +12,7 @@ const COUNTRY_FILE_MAP = {
   Italy: 'italy.docx',
   Netherlands: 'netherlands.docx',
   Philippines: 'philippines.docx',
-  Singapore: 'singapore.docx',
+  Singapore: 'singaporee.docx',
   Switzerland: 'switzerland.docx',
   Thailand: 'thailand.docx',
   'United Arab Emirates': 'uae.docx',
