@@ -9,15 +9,22 @@ const app = express();
 const allowedOrigins = [
   'https://theconnectventures.com',
   'https://www.theconnectventures.com',
+  'https://connect-ventures-frontend-4nugap6fl.vercel.app', // Vercel deployment
   'http://localhost:5173',
   'http://localhost:3000',
 ];
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Allow no-origin (Postman/curl), exact matches, OR any *.vercel.app preview URL
+    if (
+      !origin ||
+      allowedOrigins.includes(origin) ||
+      /\.vercel\.app$/.test(origin)
+    ) {
       callback(null, true);
     } else {
+      console.warn(`[CORS] Blocked: ${origin}`);
       callback(new Error(`CORS blocked: ${origin}`));
     }
   },
@@ -37,16 +44,15 @@ mongoose.connect(process.env.MONGODB_URI, {
   });
 
 // ─── ROUTES ──────────────────────────────────────────────────────────────────
-app.use('/api/contact',   require('./routes/contact'));    // website contact form leads
-app.use('/api/guides',    require('./routes/guides'));     // guide downloads (gated PDF)
-app.use('/api/partners',  require('./routes/partners'));   // partner applications
-app.use('/api/campaigns', require('./routes/campaigns')); // campaign tracking
+app.use('/api/contact',   require('./routes/contact'));
+app.use('/api/guides',    require('./routes/guides'));
+app.use('/api/partners',  require('./routes/partners'));
+app.use('/api/campaigns', require('./routes/campaigns'));
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
 
-// ─── QUICK ADMIN OVERVIEW ────────────────────────────────────────────────────
-// Hit GET /api/admin/summary to see counts across all collections at once
+// ─── ADMIN OVERVIEW ──────────────────────────────────────────────────────────
 const Lead     = require('./models/Lead');
 const Guide    = require('./models/Guide');
 const Partner  = require('./models/Partner');
@@ -66,7 +72,6 @@ app.get('/api/admin/summary', async (req, res) => {
   }
 });
 
-// GET /api/admin/leads — most recent 100 leads across all sources
 app.get('/api/admin/leads', async (req, res) => {
   try {
     const leads = await Lead.find().sort({ createdAt: -1 }).limit(100);
