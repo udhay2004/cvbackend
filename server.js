@@ -62,7 +62,7 @@ app.use('/api/guides',    require('./routes/guides'));
 app.use('/api/partners',  require('./routes/partners'));
 app.use('/api/campaigns', require('./routes/campaigns'));
 app.use('/api/projects',  require('./routes/projects'));  
-app.use('/api/listings', require('./routes/listings'));
+app.use('/api/marketplace', require('./routes/listings'));
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
