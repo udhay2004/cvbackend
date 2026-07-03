@@ -10,9 +10,7 @@ const app = express();
 const allowedOrigins = [
   'https://theconnectventures.com',
   'https://www.theconnectventures.com',
-  'https://connect-ventures-frontend-4nugap6fl.vercel.app', // Vercel deployment
-  'http://localhost:5173',
-  'http://localhost:3000',
+  'https://snazzy-figolla-8213ce.netlify.app'   // ← add this line
 ];
 
 // ─── REQUEST LOGGING ─────────────────────────────────────────────────────────
