@@ -1,4 +1,5 @@
 require('dotenv').config();
+const path = require('path');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -32,6 +33,12 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// ─── STATIC FILES ────────────────────────────────────────────────────────────
+// Serves everything in /public, so a file at public/guides/usa.docx becomes
+// downloadable at /static/guides/usa.docx — matching what routes/guides.js
+// returns as `downloadUrl`.
+app.use('/static', express.static(path.join(__dirname, 'public')));
 
 // ─── MONGODB ─────────────────────────────────────────────────────────────────
 mongoose.connect(process.env.MONGODB_URI, {
