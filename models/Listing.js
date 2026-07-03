@@ -8,6 +8,8 @@ const listingSchema = new mongoose.Schema(
     dealType:      { type: String, required: true, trim: true },
     askingPrice:   { type: String, trim: true },
     revenue:       { type: String, trim: true },
+    yearEstablished: { type: String, trim: true },
+    employees:     { type: String, trim: true },
     summary:       { type: String, required: true },
     contactName:   { type: String, required: true, trim: true },
     contactEmail:  { type: String, required: true, trim: true, lowercase: true },
