@@ -15,6 +15,14 @@ const allowedOrigins = [
   'http://localhost:3000',
 ];
 
+// ─── REQUEST LOGGING ─────────────────────────────────────────────────────────
+// Runs BEFORE cors so even requests that get CORS-blocked are logged with
+// their method + path, instead of just an opaque "[CORS] Blocked: null" line.
+app.use((req, res, next) => {
+  console.log(`[REQ] ${req.method} ${req.originalUrl} — Origin: ${req.headers.origin || 'none'}`);
+  next();
+});
+
 app.use(cors({
   origin: (origin, callback) => {
     // Allow no-origin (Postman/curl), exact matches, OR any *.vercel.app preview URL
