@@ -55,6 +55,7 @@ app.use('/api/contact',   require('./routes/contact'));
 app.use('/api/guides',    require('./routes/guides'));
 app.use('/api/partners',  require('./routes/partners'));
 app.use('/api/campaigns', require('./routes/campaigns'));
+app.use('/api/projects',  require('./routes/projects'));  
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
