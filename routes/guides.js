@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const GuideLead = require('../models/Guide');
+const requireAdmin = require('../middleware/requireAdmin');
 
 const COUNTRY_FILE_MAP = {
   Australia: 'australia.docx',
@@ -21,8 +22,8 @@ const COUNTRY_FILE_MAP = {
   Vietnam: 'vietnam.docx',
 };
 
-// GET /api/guides — list all saved guide-download leads (used by the CRM)
-router.get('/', async (req, res) => {
+// GET /api/guides — list all saved guide-download leads (admin only)
+router.get('/', requireAdmin, async (req, res) => {
   try {
     const guides = await GuideLead.find().sort({ createdAt: -1 });
     res.json({ guides });
