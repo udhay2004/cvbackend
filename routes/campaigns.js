@@ -1,5 +1,6 @@
 const express = require('express');
 const Campaign = require('../models/Campaign');
+const requireAdmin = require('../middleware/requireAdmin');
 
 const router = express.Router();
 
@@ -14,9 +15,24 @@ function slugify(title) {
     .replace(/-+/g, '-');
 }
 
+// ---------- GET /api/campaigns/admin/all ----------
+// ADMIN ONLY. Every status, with contactEmail included. Registered before
+// /:slug so it isn't swallowed by the slug route below.
+router.get('/admin/all', requireAdmin, async (req, res) => {
+  try {
+    const campaigns = await Campaign.find().sort({ createdAt: -1 });
+    res.json({ campaigns });
+  } catch (err) {
+    console.error('List campaigns (admin) error:', err);
+    res.status(500).json({ error: 'Could not load campaigns.' });
+  }
+});
+
 // ---------- GET /api/campaigns ----------
 // Public. campaigns.html calls this with ?status=open,matched,closed
 // and expects back: { campaigns: [ {slug, title, originCountry, ...} ] }
+// contactEmail is stripped — a visitor doesn't need the founder's direct
+// email sitting in a public JSON response.
 router.get('/', async (req, res) => {
   try {
     const statusParam = req.query.status; // e.g. "open,matched,closed"
@@ -27,7 +43,9 @@ router.get('/', async (req, res) => {
       filter.status = { $in: ['open', 'matched', 'closed'] };
     }
 
-    const campaigns = await Campaign.find(filter).sort({ createdAt: -1 });
+    const campaigns = await Campaign.find(filter)
+      .select('-contactEmail')
+      .sort({ createdAt: -1 });
     res.json({ campaigns });
   } catch (err) {
     console.error('List campaigns error:', err);
@@ -39,7 +57,7 @@ router.get('/', async (req, res) => {
 // Public. campaigns.html calls this to render the dossier/detail view.
 router.get('/:slug', async (req, res) => {
   try {
-    const campaign = await Campaign.findOne({ slug: req.params.slug });
+    const campaign = await Campaign.findOne({ slug: req.params.slug }).select('-contactEmail');
     if (!campaign) {
       return res.status(404).json({ error: 'Campaign not found.' });
     }
