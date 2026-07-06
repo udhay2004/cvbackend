@@ -1,5 +1,6 @@
 const express = require('express');
 const Partner = require('../models/Partner');
+const requireAdmin = require('../middleware/requireAdmin');
 
 const router = express.Router();
 
@@ -42,9 +43,9 @@ router.post('/', async (req, res) => {
 });
 
 // ---------- GET /api/partners ----------
-// Internal use — for the matching step later, and so you can sanity-check
-// submissions via Postman while there's no admin UI yet.
-router.get('/', async (req, res) => {
+// Admin only — for the matching step later. This returns email/phone/bio,
+// so it must not be public.
+router.get('/', requireAdmin, async (req, res) => {
   try {
     const partners = await Partner.find({ isActive: true }).sort({ createdAt: -1 });
     res.json({ partners });
