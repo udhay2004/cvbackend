@@ -23,11 +23,15 @@ app.use((req, res, next) => {
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow no-origin (Postman/curl), exact matches, OR any *.vercel.app preview URL
+    // Allow no-origin (Postman/curl), exact matches, OR a preview URL that
+    // is actually this project (e.g. connect-ventures-frontend-git-xyz.vercel.app).
+    // Matching bare ".vercel.app" previously let ANY Vercel-hosted site —
+    // including an attacker's own throwaway project — send credentialed
+    // requests to this API. Scoping the regex to the project name closes that.
     if (
       !origin ||
       allowedOrigins.includes(origin) ||
-      /\.vercel\.app$/.test(origin)
+      /^https:\/\/connect-ventures-frontend[a-z0-9-]*\.vercel\.app$/.test(origin)
     ) {
       callback(null, true);
     } else {
@@ -72,8 +76,9 @@ const Lead     = require('./models/Lead');
 const Guide    = require('./models/Guide');
 const Partner  = require('./models/Partner');
 const Campaign = require('./models/Campaign');
+const requireAdmin = require('./middleware/requireAdmin');
 
-app.get('/api/admin/summary', async (req, res) => {
+app.get('/api/admin/summary', requireAdmin, async (req, res) => {
   try {
     const [leads, guides, partners, campaigns] = await Promise.all([
       Lead.countDocuments(),
@@ -87,7 +92,7 @@ app.get('/api/admin/summary', async (req, res) => {
   }
 });
 
-app.get('/api/admin/leads', async (req, res) => {
+app.get('/api/admin/leads', requireAdmin, async (req, res) => {
   try {
     const leads = await Lead.find().sort({ createdAt: -1 }).limit(100);
     res.json({ count: leads.length, leads });
