@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Lead = require('../models/Lead');
+const requireAdmin = require('../middleware/requireAdmin');
 
 // POST /api/contact — save a new lead from the website contact form
 router.post('/', async (req, res) => {
@@ -30,8 +31,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET /api/contact — retrieve all leads (for admin use)
-router.get('/', async (req, res) => {
+// GET /api/contact — retrieve all leads (admin only)
+router.get('/', requireAdmin, async (req, res) => {
   try {
     const leads = await Lead.find().sort({ createdAt: -1 }).limit(100);
     return res.json({ count: leads.length, leads });
