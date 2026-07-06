@@ -1,14 +1,32 @@
 const express = require('express');
 const Listing = require('../models/Listing');
+const requireAdmin = require('../middleware/requireAdmin');
 const router = express.Router();
 
-// GET /api/marketplace — list all listings (used by the CRM)
+// GET /api/marketplace — PUBLIC. Used by marketplace.html.
+// Only ever returns approved listings, and never the direct contact
+// fields — those should stay behind the CRM until a deal is actually
+// pursued, not sit in the public page's rendered HTML/JSON.
 router.get('/', async (req, res) => {
+  try {
+    const listings = await Listing.find({ status: 'approved' })
+      .select('-contactEmail -contactPhone')
+      .sort({ createdAt: -1 });
+    res.json({ listings });
+  } catch (err) {
+    console.error('Fetch listings error:', err);
+    res.status(500).json({ error: 'Could not fetch listings.' });
+  }
+});
+
+// GET /api/marketplace/admin — ADMIN ONLY. Used by the CRM.
+// Returns every listing regardless of status, with full contact fields.
+router.get('/admin', requireAdmin, async (req, res) => {
   try {
     const listings = await Listing.find().sort({ createdAt: -1 });
     res.json({ listings });
   } catch (err) {
-    console.error('Fetch listings error:', err);
+    console.error('Fetch listings (admin) error:', err);
     res.status(500).json({ error: 'Could not fetch listings.' });
   }
 });
@@ -28,8 +46,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PATCH /api/marketplace/:id/status — approve/reject/reset (used by the CRM)
-router.patch('/:id/status', async (req, res) => {
+// PATCH /api/marketplace/:id/status — approve/reject/reset (ADMIN ONLY — used by the CRM)
+router.patch('/:id/status', requireAdmin, async (req, res) => {
   try {
     const { status } = req.body;
     if (!['pending', 'approved', 'rejected'].includes(status)) {
