@@ -3,6 +3,10 @@ const Listing = require('../models/Listing');
 const requireAdmin = require('../middleware/requireAdmin');
 const router = express.Router();
 
+function slugify(title) {
+  return title.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-');
+}
+
 // GET /api/marketplace — PUBLIC. Used by marketplace.html.
 // Only ever returns approved listings, and never the direct contact
 // fields — those should stay behind the CRM until a deal is actually
@@ -38,8 +42,11 @@ router.post('/', async (req, res) => {
     if (!title || !industry || !country || !dealType || !summary || !contactName || !contactEmail) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
-    const listing = await Listing.create({ title, industry, country, dealType, askingPrice, revenue, yearEstablished, employees, summary, contactName, contactEmail, contactPhone });
-    res.status(201).json({ success: true, listingId: listing._id });
+    let slug = slugify(title);
+    if (await Listing.findOne({ slug })) slug = `${slug}-${Date.now().toString(36)}`;
+
+    const listing = await Listing.create({ slug, title, industry, country, dealType, askingPrice, revenue, yearEstablished, employees, summary, contactName, contactEmail, contactPhone });
+    res.status(201).json({ success: true, listingId: listing._id, slug: listing.slug });
   } catch (err) {
     console.error('Create listing error:', err);
     res.status(500).json({ error: 'Could not submit listing.' });
