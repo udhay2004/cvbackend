@@ -51,14 +51,56 @@ app.use(express.json());
 app.use('/static', express.static(path.join(__dirname, 'public')));
 
 // ─── MONGODB ─────────────────────────────────────────────────────────────────
-mongoose.connect(process.env.MONGODB_URI, {
-  serverSelectionTimeoutMS: 10000,
-})
-  .then(() => console.log('[MongoDB] Connected — connectventures db'))
-  .catch(err => {
-    console.error('[MongoDB] Connection failed:', err.message);
-    process.exit(1);
-  });
+// IMPORTANT: we never process.exit() on a connection failure anymore.
+// On Render, exiting the process just triggers a restart — if the DB is
+// still unreachable (bad creds, IP allowlist, paused cluster) that becomes
+// an infinite crash loop, which from the frontend looks exactly like
+// "sometimes it saves, mostly it doesn't." Instead we keep the HTTP server
+// alive (so /health always responds) and retry the DB connection with
+// backoff, logging clearly each time so Render logs show the real cause.
+if (!process.env.MONGODB_URI) {
+  console.error('[MongoDB] MONGODB_URI is not set in the environment — writes will fail until this is fixed.');
+}
+
+let mongoRetryDelayMs = 3000; // starts at 3s, backs off up to 30s
+function connectMongo() {
+  if (!process.env.MONGODB_URI) return;
+  mongoose.connect(process.env.MONGODB_URI, {
+    serverSelectionTimeoutMS: 10000,
+  })
+    .then(() => {
+      console.log('[MongoDB] Connected — connectventures db');
+      mongoRetryDelayMs = 3000; // reset backoff on success
+    })
+    .catch(err => {
+      console.error('[MongoDB] Connection failed:', err.message);
+      console.error(`[MongoDB] Retrying in ${mongoRetryDelayMs / 1000}s...`);
+      setTimeout(connectMongo, mongoRetryDelayMs);
+      mongoRetryDelayMs = Math.min(mongoRetryDelayMs * 2, 30000);
+    });
+}
+connectMongo();
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('[MongoDB] Disconnected — will attempt to reconnect.');
+  connectMongo();
+});
+mongoose.connection.on('error', err => {
+  console.error('[MongoDB] Runtime error:', err.message);
+});
+
+// Gate every /api write/read route behind an actual DB connection check.
+// Without this, a request that comes in while Mongo is mid-reconnect just
+// hangs until Mongoose's own buffering timeout fires (10s+), which is
+// exactly the kind of silent slowness/failure you were seeing. Now it
+// fails fast with a clear message instead.
+app.use('/api', (req, res, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    console.warn(`[MongoDB] Rejecting ${req.method} ${req.originalUrl} — DB not connected (state=${mongoose.connection.readyState})`);
+    return res.status(503).json({ error: 'Database temporarily unavailable. Please try again in a moment.' });
+  }
+  next();
+});
 
 // ─── ROUTES ──────────────────────────────────────────────────────────────────
 app.use('/api/contact',   require('./routes/contact'));
@@ -68,8 +110,18 @@ app.use('/api/campaigns', require('./routes/campaigns'));
 app.use('/api/projects',  require('./routes/projects'));  
 app.use('/api/marketplace', require('./routes/listings'));
 
-// Health check
-app.get('/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
+// Health check — includes live DB connection state so you can hit this
+// URL directly in a browser to confirm whether Mongo is actually connected,
+// instead of guessing from symptoms on the frontend.
+// readyState: 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
+app.get('/health', (req, res) => {
+  const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+  res.json({
+    status: 'ok',
+    ts: new Date().toISOString(),
+    mongo: states[mongoose.connection.readyState] || 'unknown',
+  });
+});
 
 // ─── ADMIN OVERVIEW ──────────────────────────────────────────────────────────
 const Lead     = require('./models/Lead');
