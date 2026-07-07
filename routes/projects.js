@@ -1,7 +1,6 @@
 const express = require('express');
 const Project = require('../models/Project');
 const requireAdmin = require('../middleware/requireAdmin');
-
 const router = express.Router();
 
 function slugify(title) {
@@ -35,6 +34,32 @@ router.get('/admin/all', requireAdmin, async (req, res) => {
     res.json({ projects });
   } catch (err) {
     res.status(500).json({ error: 'Could not load projects.' });
+  }
+});
+
+// PATCH /api/projects/:id/status — ADMIN ONLY. Used by the CRM's
+// Approve/Reject buttons. Sets status to 'open' (published — shows up
+// on the public /api/projects?status=open,closed feed), 'closed'
+// (rejected/unpublished), or back to 'pending'.
+// Must be registered BEFORE /:slug below, same reason as /admin/all.
+router.patch('/:id/status', requireAdmin, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!['open', 'pending', 'closed'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+    const project = await Project.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    res.json({ success: true, project });
+  } catch (err) {
+    console.error('Update project status error:', err);
+    res.status(500).json({ error: 'Could not update project status.' });
   }
 });
 
