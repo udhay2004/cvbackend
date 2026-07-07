@@ -10,7 +10,7 @@ const app = express();
 const allowedOrigins = [
   'https://theconnectventures.com',
   'https://www.theconnectventures.com',
-  'https://snazzy-figolla-8213ce.netlify.app'   // ← add this line
+  'https://amazing-hummingbird-bad01e.netlify.app'
 ];
 
 // ─── REQUEST LOGGING ─────────────────────────────────────────────────────────
