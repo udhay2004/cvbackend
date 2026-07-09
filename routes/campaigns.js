@@ -1,6 +1,11 @@
 const express = require('express');
 const Campaign = require('../models/Campaign');
+const Partner = require('../models/Partner');
 const requireAdmin = require('../middleware/requireAdmin');
+const requireService = require('../middleware/requireService');
+const { extractCampaignTags } = require('../services/tagExtraction');
+const { matchPartners } = require('../services/matching');
+const { notifyAdminPendingCampaign, notifyPartnerMatch, notifySubmitterApproved } = require('../services/notify');
 
 const router = express.Router();
 
@@ -69,10 +74,15 @@ router.get('/:slug', async (req, res) => {
 });
 
 // ---------- POST /api/campaigns ----------
-// Internal use for now — this is what the chatbot backend will call
-// once a founder consents to publishing. Not yet wired to anything
-// public; no auth gate added yet since the chatbot logic doesn't exist.
-router.post('/', async (req, res) => {
+// Called by the chatbot backend once a founder consents to being connected
+// with the partner network. Gated behind requireService — this is a
+// server-to-server call, not something the public frontend hits directly.
+//
+// Campaigns always land as 'pending' here, regardless of what the caller
+// sends — publishing + partner emails only happen via the explicit
+// POST /:slug/approve step below, so a human always reviews before any
+// partner gets an email about it.
+router.post('/', requireService, async (req, res) => {
   try {
     const {
       title, originCountry, destCountry, topic, license,
@@ -87,17 +97,70 @@ router.post('/', async (req, res) => {
     const existing = await Campaign.findOne({ slug });
     if (existing) slug = `${slug}-${Date.now().toString(36)}`;
 
+    let tags = Array.isArray(extractedTags) ? extractedTags.filter(Boolean) : [];
+    if (!tags.length) {
+      // Chatbot normally sends its own tags; this is a fallback for any
+      // other future caller that doesn't.
+      tags = await extractCampaignTags({ topic, license, originCountry, destCountry, details });
+    }
+
     const campaign = await Campaign.create({
       slug, title, originCountry, destCountry, topic, license,
       blurb, details, postedAs, contactEmail,
-      extractedTags: extractedTags || [],
-      status: 'open',
+      extractedTags: tags,
+      status: 'pending',
     });
+
+    notifyAdminPendingCampaign(campaign).catch(err =>
+      console.error('[campaigns] admin pending-notify failed:', err.message)
+    );
 
     res.status(201).json(campaign);
   } catch (err) {
     console.error('Create campaign error:', err);
     res.status(500).json({ error: 'Could not create campaign.' });
+  }
+});
+
+// ---------- POST /api/campaigns/:slug/approve ----------
+// Admin only. Matches the campaign against the partner pool, emails the
+// matched partners, flips status to 'matched' (or 'open' if nobody
+// matched), and lets the original submitter know.
+router.post('/:slug/approve', requireAdmin, async (req, res) => {
+  try {
+    const campaign = await Campaign.findOne({ slug: req.params.slug });
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campaign not found.' });
+    }
+    if (campaign.status !== 'pending') {
+      return res.status(400).json({ error: `Campaign is already '${campaign.status}'.` });
+    }
+
+    const partners = await Partner.find({ isActive: true });
+    const matches = matchPartners(partners, campaign.extractedTags).slice(0, 8);
+
+    await Promise.all(
+      matches.map(m =>
+        notifyPartnerMatch(m.partner, campaign).catch(err =>
+          console.error('[campaigns] partner email failed for', m.partner.email, '-', err.message)
+        )
+      )
+    );
+
+    campaign.status = matches.length ? 'matched' : 'open';
+    await campaign.save();
+
+    notifySubmitterApproved(campaign, matches.length).catch(err =>
+      console.error('[campaigns] submitter email failed:', err.message)
+    );
+
+    res.json({
+      campaign,
+      matchedPartners: matches.map(m => ({ id: m.partner._id, name: m.partner.name, score: m.score })),
+    });
+  } catch (err) {
+    console.error('Approve campaign error:', err);
+    res.status(500).json({ error: 'Could not approve campaign.' });
   }
 });
 
