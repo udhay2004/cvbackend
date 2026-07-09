@@ -1,6 +1,7 @@
 const express = require('express');
 const Partner = require('../models/Partner');
 const requireAdmin = require('../middleware/requireAdmin');
+const { extractPartnerTags } = require('../services/tagExtraction');
 
 const router = express.Router();
 
@@ -8,8 +9,11 @@ const router = express.Router();
 // Public. become-a-partner.html sends:
 // { name, email, phone, organization, marketsText, expertiseText, bio }
 //
-// NOTE: extractedTags is intentionally left empty here for now. The real
-// Claude-based tag extraction is a separate piece we haven't built yet.
+// extractedTags is now populated synchronously via Claude before we save —
+// this is what routes/campaigns.js matches against later. If the Claude
+// call fails for any reason, extractPartnerTags() returns [] rather than
+// throwing, so signup still succeeds; the partner just won't be matchable
+// until re-tagged (see the admin re-tag route below).
 router.post('/', async (req, res) => {
   try {
     const { name, email, phone, organization, marketsText, expertiseText, bio } = req.body;
@@ -21,6 +25,8 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Please share at least some markets or expertise.' });
     }
 
+    const extractedTags = await extractPartnerTags({ marketsText, expertiseText, bio });
+
     const partner = await Partner.create({
       name,
       email: email.toLowerCase(),
@@ -29,7 +35,7 @@ router.post('/', async (req, res) => {
       marketsText,
       expertiseText,
       bio,
-      extractedTags: [], // populated later by the tagging step
+      extractedTags,
     });
 
     res.status(201).json({
@@ -52,6 +58,36 @@ router.get('/', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('List partners error:', err);
     res.status(500).json({ error: 'Could not load partners.' });
+  }
+});
+
+// ---------- POST /api/partners/retag ----------
+// Admin only, one-off/occasional use. Backfills extractedTags for any
+// partner that signed up before tag extraction existed (extractedTags: []).
+router.post('/retag', requireAdmin, async (req, res) => {
+  try {
+    const untagged = await Partner.find({
+      $or: [{ extractedTags: { $exists: false } }, { extractedTags: { $size: 0 } }],
+    });
+
+    let updated = 0;
+    for (const partner of untagged) {
+      const extractedTags = await extractPartnerTags({
+        marketsText: partner.marketsText,
+        expertiseText: partner.expertiseText,
+        bio: partner.bio,
+      });
+      if (extractedTags.length) {
+        partner.extractedTags = extractedTags;
+        await partner.save();
+        updated++;
+      }
+    }
+
+    res.json({ checked: untagged.length, updated });
+  } catch (err) {
+    console.error('Retag partners error:', err);
+    res.status(500).json({ error: 'Could not retag partners.' });
   }
 });
 
