@@ -10,7 +10,7 @@ const app = express();
 const allowedOrigins = [
   'https://theconnectventures.com',
   'https://www.theconnectventures.com',
-  'https://lambent-cajeta-5af25b.netlify.app'
+  'https://adorable-mochi-ea0258.netlify.app'
 ];
 
 // ─── REQUEST LOGGING ─────────────────────────────────────────────────────────
