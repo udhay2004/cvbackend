@@ -158,7 +158,7 @@ router.post('/:slug/approve', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'This campaign has no contact info on file — cannot approve.' });
     }
 
-    const partners = await Partner.find({ isActive: true });
+    const partners = await Partner.find({ isActive: true, status: 'approved' });
     const matches = matchPartners(partners, campaign.extractedTags).slice(0, 8);
 
     await Promise.all(
