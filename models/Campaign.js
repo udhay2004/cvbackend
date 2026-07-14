@@ -38,7 +38,29 @@ const campaignSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
     },
-    contactEmail: { type: String },
+
+    // REQUIRED as of the partner-query flow: the chatbot must only create a
+    // Campaign once it has actually collected the person's name + a way to
+    // reach them (email and/or phone). This is the admin's one guardrail —
+    // a query with no contact info can't be verified, so it should never
+    // reach the CRM at all. Enforced here (not just in the chatbot) so a
+    // bug in the chatbot's gating can't silently create unreachable leads.
+    contactName: { type: String, trim: true },
+    contactEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      validate: {
+        validator: function (v) {
+          // At least one of contactEmail / contactPhone must be present.
+          // Mongoose validators run per-field, so we check the sibling
+          // field here rather than relying on a single `required: true`.
+          return !!(v || this.contactPhone);
+        },
+        message: 'A campaign needs at least a contact email or phone before it can be created.',
+      },
+    },
+    contactPhone: { type: String, trim: true },
   },
   { timestamps: true }
 );
