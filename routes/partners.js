@@ -7,16 +7,20 @@ const router = express.Router();
 
 // ---------- POST /api/partners ----------
 // Public. become-a-partner.html sends:
-// { name, email, phone, organization, marketsText, expertiseText, bio }
+// { name, email, phone, organization, country, marketsText, expertiseText, bio }
 //
 // extractedTags is now populated synchronously via Claude before we save —
 // this is what routes/campaigns.js matches against later. If the Claude
 // call fails for any reason, extractPartnerTags() returns [] rather than
 // throwing, so signup still succeeds; the partner just won't be matchable
 // until re-tagged (see the admin re-tag route below).
+//
+// New signups always land as status: 'pending' (the schema default) — an
+// admin has to approve them in the CRM before matching starts treating
+// them as a real, vetted partner.
 router.post('/', async (req, res) => {
   try {
-    const { name, email, phone, organization, marketsText, expertiseText, bio } = req.body;
+    const { name, email, phone, organization, country, marketsText, expertiseText, bio } = req.body;
 
     if (!name || !email) {
       return res.status(400).json({ error: 'Name and email are required.' });
@@ -32,6 +36,7 @@ router.post('/', async (req, res) => {
       email: email.toLowerCase(),
       phone,
       organization,
+      country,
       marketsText,
       expertiseText,
       bio,
@@ -49,15 +54,49 @@ router.post('/', async (req, res) => {
 });
 
 // ---------- GET /api/partners ----------
-// Admin only — for the matching step later. This returns email/phone/bio,
-// so it must not be public.
+// Admin only — for the matching step later, and for the CRM's Partners
+// tab. Returns every partner regardless of status (the CRM itself filters
+// by status client-side), so pending/rejected ones are still visible for
+// review — only services/matching.js restricts to isActive.
 router.get('/', requireAdmin, async (req, res) => {
   try {
-    const partners = await Partner.find({ isActive: true }).sort({ createdAt: -1 });
+    const partners = await Partner.find().sort({ createdAt: -1 });
     res.json({ partners });
   } catch (err) {
     console.error('List partners error:', err);
     res.status(500).json({ error: 'Could not load partners.' });
+  }
+});
+
+// ---------- PATCH /api/partners/:id/status ----------
+// Admin only. This is what the CRM's Approve/Reject buttons call — it
+// didn't exist before, which is why approving a partner in the CRM 404'd.
+//
+// Rejecting a partner also flips isActive to false, so
+// services/matching.js (which only ever reads Partner.find({isActive:true}))
+// stops considering them for future campaign matches immediately —
+// no separate step needed. Approving flips isActive back to true, in case
+// you're reversing an earlier rejection.
+router.patch('/:id/status', requireAdmin, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const allowed = ['pending', 'approved', 'rejected'];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ error: `status must be one of: ${allowed.join(', ')}` });
+    }
+
+    const update = { status };
+    if (status === 'rejected') update.isActive = false;
+    if (status === 'approved') update.isActive = true;
+
+    const partner = await Partner.findByIdAndUpdate(req.params.id, update, { new: true });
+    if (!partner) {
+      return res.status(404).json({ error: 'Partner not found.' });
+    }
+    res.json({ partner });
+  } catch (err) {
+    console.error('Update partner status error:', err);
+    res.status(500).json({ error: 'Could not update partner status.' });
   }
 });
 
