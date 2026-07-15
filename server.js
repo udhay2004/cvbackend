@@ -62,6 +62,20 @@ if (!process.env.MONGODB_URI) {
   console.error('[MongoDB] MONGODB_URI is not set in the environment — writes will fail until this is fixed.');
 }
 
+// Same reasoning as the chatbot's boot-time check: each of these silently
+// disables one piece of the partner-linkage flow rather than crashing, so
+// without a loud check here the first sign of trouble is "why didn't I get
+// an email" days later instead of an obvious line at the top of the logs.
+[
+  ['ADMIN_API_KEY',      process.env.ADMIN_API_KEY,      'ALL admin routes (CRM) will return 401'],
+  ['SERVICE_API_KEY',    process.env.SERVICE_API_KEY,     'chatbot campaign posts will return 401 — nothing will reach the CRM'],
+  ['RESEND_API_KEY',     process.env.RESEND_API_KEY,      'admin/partner/submitter emails will NOT be sent'],
+  ['ADMIN_NOTIFY_EMAIL', process.env.ADMIN_NOTIFY_EMAIL,  '"new query" alert emails have nowhere to go'],
+].forEach(([name, val, consequence]) => {
+  if (!val) console.warn(`⚠️  ENV MISSING: ${name} — ${consequence}`);
+  else       console.log(`✅ ENV loaded: ${name}`);
+});
+
 let mongoRetryDelayMs = 3000; // starts at 3s, backs off up to 30s
 function connectMongo() {
   if (!process.env.MONGODB_URI) return;
@@ -120,6 +134,13 @@ app.get('/health', (req, res) => {
     status: 'ok',
     ts: new Date().toISOString(),
     mongo: states[mongoose.connection.readyState] || 'unknown',
+    // Booleans only — never expose the actual secret values here.
+    config: {
+      adminApiKey: !!process.env.ADMIN_API_KEY,
+      serviceApiKey: !!process.env.SERVICE_API_KEY,
+      resendApiKey: !!process.env.RESEND_API_KEY,
+      adminNotifyEmail: !!process.env.ADMIN_NOTIFY_EMAIL,
+    },
   });
 });
 
