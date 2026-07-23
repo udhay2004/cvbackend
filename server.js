@@ -81,6 +81,15 @@ function connectMongo() {
   if (!process.env.MONGODB_URI) return;
   mongoose.connect(process.env.MONGODB_URI, {
     serverSelectionTimeoutMS: 10000,
+    // Pinned explicitly. The chatbot service connects with its own
+    // MongoClient and forces `.db('connectventures')` regardless of what
+    // path segment is in ITS connection string. If this URI's path segment
+    // is anything other than /connectventures (or has no path segment at
+    // all, which makes the driver default to "test"), this service and the
+    // chatbot silently write to two different databases — writes succeed,
+    // nothing errors, and CRM reads from one db while the chatbot writes
+    // to another. Pinning dbName here removes that ambiguity entirely.
+    dbName: 'connectventures',
   })
     .then(() => {
       console.log('[MongoDB] Connected — connectventures db');
