@@ -10,7 +10,7 @@ const app = express();
 const allowedOrigins = [
   'https://theconnectventures.com',
   'https://www.theconnectventures.com',
-  'https://elegant-crisp-5f1436.netlify.app'
+  'https://mellow-licorice-134bab.netlify.app'
 ];
 
 // ─── REQUEST LOGGING ─────────────────────────────────────────────────────────
