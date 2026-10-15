@@ -7,10 +7,19 @@ const cors = require('cors');
 const app = express();
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
+// Browsers send Origin WITHOUT a trailing slash, so entries here must not have
+// one either (the Netlify entry used to end in "/" and could never match).
+// To allow another site (e.g. wherever the CRM dashboard is hosted) without a
+// code change, set EXTRA_ALLOWED_ORIGINS on Railway to a comma-separated list,
+// e.g. https://my-crm.netlify.app,https://crm.example.com
 const allowedOrigins = [
   'https://theconnectventures.com',
   'https://www.theconnectventures.com',
-  'https://bucolic-marigold-d69eb2.netlify.app/'
+  'https://bucolic-marigold-d69eb2.netlify.app',
+  ...(process.env.EXTRA_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(o => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean),
 ];
 
 // ─── REQUEST LOGGING ─────────────────────────────────────────────────────────
